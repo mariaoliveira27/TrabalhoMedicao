@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#123b37">
+  <meta name="description" content="Pesquisa sobre medição, indicadores e a realidade das empresas.">
+  <title>Medição na prática · Pesquisa</title>
+  <link rel="icon" href="./favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="./style.css">
+  <script src="./app.js" type="module"></script>
+</head>
+<body>
+  <header class="header">
+    <a class="brand" href="./" aria-label="Medição na prática, início"><span class="brand-mark" aria-hidden="true">m<span>↗</span></span><span>medição<span class="brand-sub">na prática</span></span></a>
+    <span class="header-note"><span class="dot"></span> Pesquisa acadêmica</span>
+    <div id="account" hidden></div>
+  </header>
+  <main id="app" aria-busy="true"><div class="loading">Preparando sua experiência…</div></main>
+  <footer class="footer"><span>Uma conversa sobre processos. Um passo para melhorar.</span><span>Medição na prática <span aria-hidden="true">↗</span></span></footer>
+  <dialog id="qr-dialog" aria-labelledby="qr-title">
+    <button class="close icon-button" aria-label="Fechar QR code">×</button>
+    <span class="eyebrow">LEVE A PESQUISA COM VOCÊ</span>
+    <h2 id="qr-title">Abra no seu celular.</h2>
+    <p>Aponte a câmera para o QR code e continue pelo seu dispositivo.</p>
+    <img id="qr-image" width="260" height="260" alt="QR code com o endereço desta pesquisa">
+    <a id="public-link" class="url-link"></a>
+    <button id="copy-link" class="button secondary">Copiar link</button>
+    <p id="copy-status" class="small" role="status"></p>
+  </dialog>
+  <dialog id="privacy-dialog" aria-labelledby="privacy-title">
+    <button class="close icon-button" aria-label="Fechar informações">×</button>
+    <span class="eyebrow">SEUS DADOS</span><h2 id="privacy-title">Participação com transparência.</h2>
+    <p>O app usa o identificador da sua conta Google e seu e-mail verificado para identificar a participação e evitar respostas duplicadas. Seu nome, empresa e respostas ficam associados à conta.</p>
+    <p>Os dados são armazenados no servidor da pesquisa e podem ser consultados e exportados pelos administradores autorizados. As respostas não são anônimas.</p>
+    <p>Participar é voluntário. Você pode sair antes de enviar. O rascunho é mantido apenas nesta aba e é removido ao sair ou concluir.</p>
+    <p class="callout">A equipe responsável deve informar aos participantes o contato para dúvidas, a finalidade específica e o prazo de retenção antes da coleta oficial.</p>
+  </dialog>
+  <div id="toast" role="status" class="toast" hidden></div>
+</body>
+</html>

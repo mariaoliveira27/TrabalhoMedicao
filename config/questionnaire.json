@@ -1,0 +1,34 @@
+{
+  "version": "1",
+  "title": "Medição na prática",
+  "description": "Compartilhe como sua empresa acompanha processos e resultados.",
+  "notice": "Questionário inicial: as perguntas devem ser revisadas pela equipe do trabalho antes da coleta oficial.",
+  "sections": [
+    {
+      "id": "contexto",
+      "title": "Sua realidade",
+      "description": "Conte um pouco sobre o contexto da sua empresa.",
+      "questions": [
+        { "id": "setor", "label": "Em qual setor a empresa atua?", "type": "select", "required": true, "options": ["Tecnologia", "Indústria", "Comércio", "Serviços", "Construção civil", "Educação", "Saúde", "Outro"] },
+        { "id": "porte", "label": "Quantas pessoas trabalham na empresa?", "type": "select", "required": true, "options": ["Até 9", "10 a 49", "50 a 99", "100 a 499", "500 ou mais", "Não sei informar"] },
+        { "id": "cargo", "label": "Qual é seu cargo ou área de atuação?", "type": "text", "required": true, "maxLength": 160 },
+        { "id": "experiencia", "label": "Há quanto tempo você atua nessa área?", "type": "select", "required": true, "options": ["Menos de 1 ano", "1 a 3 anos", "4 a 6 anos", "7 a 10 anos", "Mais de 10 anos"] }
+      ]
+    },
+    {
+      "id": "medicao",
+      "title": "Medição e indicadores",
+      "description": "Queremos entender o que já faz parte da sua rotina.",
+      "questions": [
+        { "id": "uso", "label": "A empresa utiliza indicadores para acompanhar resultados?", "type": "select", "required": true, "options": ["Sim, de forma estruturada", "Sim, de forma pontual", "Está começando a utilizar", "Não utiliza", "Não sei informar"] },
+        { "id": "frequencia", "label": "Com que frequência os resultados são acompanhados?", "type": "select", "required": true, "options": ["Diariamente", "Semanalmente", "Mensalmente", "Trimestralmente ou mais", "Sem frequência definida", "Não se aplica"] },
+        { "id": "ferramentas", "label": "Quais ferramentas são utilizadas?", "hint": "Selecione todas as opções que se aplicam.", "type": "multiselect", "required": true, "options": ["Planilhas", "Sistema de gestão (ERP)", "Ferramentas de BI", "Registros em papel", "Sistema próprio", "Nenhuma", "Outra"] },
+        { "id": "clareza", "label": "Os indicadores ajudam a tomar decisões?", "hint": "Considere a realidade da empresa, de 1 (pouco) a 5 (muito).", "type": "select", "required": true, "options": ["1 — Pouco", "2", "3", "4", "5 — Muito", "Não se aplica"] },
+        { "id": "quantidade_indicadores", "label": "Quantos indicadores você acompanha, aproximadamente?", "hint": "Se não souber, deixe em branco. Informe um número inteiro.", "type": "number", "required": false, "min": 0, "max": 10000, "integer": true },
+        { "id": "tempo_semanal", "label": "Quantos minutos por semana você dedica ao acompanhamento dos indicadores?", "hint": "Considere seu tempo individual. Se não souber, deixe em branco.", "type": "number", "required": false, "min": 0, "max": 10080 },
+        { "id": "desafios", "label": "Qual é o maior desafio para medir e acompanhar resultados?", "type": "textarea", "required": true, "maxLength": 2000 },
+        { "id": "comentarios", "label": "Gostaria de acrescentar algo?", "type": "textarea", "required": false, "maxLength": 2000 }
+      ]
+    }
+  ]
+}
