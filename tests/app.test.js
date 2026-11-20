@@ -133,3 +133,29 @@ test('network aggregates sector/tool pairs, excludes None and applies edge filte
   assert.equal(graph.nodes.find(n => n.id === 's:Serviços').count, 2);
   assert.equal(networkData(rows, 2).links.length, 1); assert.equal(networkData(rows, 3).nodes.length, 0);
 });
+
+test('conditional reasons follow ratings and discard stale answers', () => {
+  const body = payload();
+  body.answers.justica = 'Não se aplica';
+  body.answers.satisfacao = 'Não sei informar';
+  delete body.answers.razoes_justica;
+  body.answers.razoes_satisfacao = 'Justificativa antiga';
+  const result = validateResponse(body, questionnaire);
+  assert.deepEqual(result.errors, {});
+  assert.equal(result.value.answers.razoes_justica, '');
+  assert.equal(result.value.answers.razoes_satisfacao, '');
+  body.answers.justica = '1 — Muito injusto';
+  assert.ok(validateResponse(body, questionnaire).errors.razoes_justica);
+});
+
+test('respondents without evaluation can submit and attention answers remain available for analysis', () => {
+  const body = payload();
+  body.answers.uso = 'Não utiliza';
+  body.answers.frequencia = 'Não há avaliação de desempenho';
+  body.answers.atencao = 'Não entendi';
+  for (const key of ['clareza', 'priorizacao', 'melhorias', 'justica', 'satisfacao']) body.answers[key] = 'Não se aplica';
+  for (const key of ['desafios', 'metricas_adotadas', 'processo_avaliacao', 'criterios', 'feedback', 'exemplos_uso']) body.answers[key] = 'Não há avaliação de desempenho';
+  const result = validateResponse(body, questionnaire);
+  assert.deepEqual(result.errors, {});
+  assert.equal(result.value.answers.atencao, 'Não entendi');
+});

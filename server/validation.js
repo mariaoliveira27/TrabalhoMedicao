@@ -1,3 +1,5 @@
+import { isQuestionVisible } from '../public/questionnaire.js';
+
 export function validateResponse(body, questionnaire) {
   const errors = {};
   const clean = (value, max) => typeof value === 'string' ? value.trim().slice(0, max + 1) : '';
@@ -9,6 +11,10 @@ export function validateResponse(body, questionnaire) {
   if (body.version !== questionnaire.version) errors.version = 'O questionário foi atualizado. Recarregue a página.';
   const answers = {};
   for (const question of questionnaire.sections.flatMap(s => s.questions)) {
+    if (!isQuestionVisible(question, body.answers)) {
+      answers[question.id] = '';
+      continue;
+    }
     const value = body.answers?.[question.id];
     if (question.type === 'number') {
       const empty = value === '' || value === undefined || value === null;

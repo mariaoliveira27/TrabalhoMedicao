@@ -1,3 +1,4 @@
+import { isQuestionVisible } from './questionnaire.js';
 import { renderCharts, bindChartControls } from './charts.js';
 
 const app = document.querySelector('#app');
@@ -117,13 +118,26 @@ function renderSurvey() {
   app.innerHTML = `<div class="survey-layout"><aside class="survey-side"><span class="eyebrow">PESQUISA ACADÊMICA</span><h1>Sua experiência.<br>Novas perspectivas.</h1><p>${esc(config.questionnaire.description)}</p><ol class="steps">${steps.map((title, index) => `<li class="${index === step ? 'active' : index < step ? 'done' : ''}" ${index === step ? 'aria-current="step"' : ''}><span class="step-index">${index < step ? '✓' : `0${index + 1}`}</span>${esc(title)}</li>`).join('')}</ol><p>${icons.shield} Respostas vinculadas à sua conta.<br>${privacyButton()}</p></aside>
     <section class="survey-card" aria-label="Formulário da pesquisa"><div class="progress" role="progressbar" aria-label="Progresso" aria-valuemin="0" aria-valuemax="${steps.length}" aria-valuenow="${step + 1}"><span></span></div>
     <form id="survey-form" novalidate><div class="card-body"><div class="card-top"><span>MEDIÇÃO NA PRÁTICA</span><span>ETAPA ${step + 1} DE ${steps.length}</span></div><h2>${esc(steps[step])}</h2><p class="card-description">${step === 0 ? 'Antes de tudo, vamos conhecer você. Campos com * são obrigatórios.' : last ? 'Confira suas informações antes de concluir a participação.' : esc(config.questionnaire.sections[step - 1].description)}</p>
-    ${step === 0 ? identification() : last ? review() : config.questionnaire.sections[step - 1].questions.map(questionField).join('')}
-    <div id="form-error" class="error" role="alert" hidden></div></div>
+    ${step === 0 ? identification() : last ? review() : config.questionnaire.sections[step - 1].questions.filter(q => isQuestionVisible(q, draft.answers)).map(questionField).join('')}
+    <p id="completion-status" class="completion-status" role="status" aria-live="polite"></p><div id="form-error" class="error" role="alert" hidden></div></div>
     <div class="card-actions">${step > 0 ? '<button type="button" class="button secondary" data-action="back">← Voltar</button>' : '<span class="autosave">Rascunho salvo nesta aba</span>'}<button class="button" type="submit">${last ? 'Enviar respostas ✓' : 'Continuar →'}</button></div></form></section></div>`;
+  updateCompletion();
   document.querySelector('#survey-form').addEventListener('submit', nextStep);
   document.querySelector('.progress span').style.width = `${(step + 1) / steps.length * 100}%`;
   document.querySelector('#survey-form').addEventListener('input', collectDraft);
-  document.querySelector('#survey-form').addEventListener('change', collectDraft);
+  document.querySelector('#survey-form').addEventListener('change', event => {
+    collectDraft();
+    const questions = config.questionnaire.sections.flatMap(section => section.questions);
+    if (questions.some(q => q.showWhen?.question === event.target.name)) {
+      for (const q of questions) {
+        if (!isQuestionVisible(q, draft.answers)) delete draft.answers[q.id];
+      }
+      saveDraft();
+      const changedName = event.target.name;
+      renderSurvey();
+      document.querySelector(`[name="${changedName}"]:checked`)?.focus();
+    }
+  });
 }
 function identification() {
   return `${config.questionnaire.notice ? `<p class="callout">${esc(config.questionnaire.notice)}</p>` : ''}
@@ -131,11 +145,25 @@ function identification() {
     <label class="field"><span class="field-label">E-mail da conta Google</span><input type="email" readonly value="${esc(user.email)}"><span class="hint">Este é o e-mail associado à sua participação.</span></label>
     <label class="field"><span class="field-label">Empresa <span class="required">*</span></span><input id="company" name="company" type="text" autocomplete="organization" maxlength="200" required placeholder="Nome da empresa em que você atua" value="${esc(draft.company)}"></label>`;
 }
+function updateCompletion() {
+  const target = document.querySelector('#completion-status');
+  if (!target || step === 0 || step >= allSteps().length - 1) return;
+  const questions = config.questionnaire.sections[step - 1].questions.filter(q => q.required && isQuestionVisible(q, draft.answers));
+  const completed = questions.filter(q => {
+    const value = draft.answers[q.id];
+    return Array.isArray(value) ? value.length > 0 : value != null && String(value).trim() !== '';
+  }).length;
+  target.textContent = completed === questions.length ? '✓ Etapa preenchida! Você pode continuar.' : completed + ' de ' + questions.length + ' perguntas obrigatórias preenchidas';
+}
 function questionField(q) {
   const value = draft.answers[q.id];
-  const title = `${esc(q.label)} ${q.required ? '<span class="required">*</span>' : '<span class="optional">(opcional)</span>'}`;
+  const symbol = q.type === 'textarea' ? '✎' : q.type === 'number' ? '#' : q.type === 'multiselect' ? '☑' : '◉';
+  const title = `<span class="question-icon" aria-hidden="true">${symbol}</span> ${esc(q.label)} ${q.required ? '<span class="required">*</span>' : '<span class="optional">(opcional)</span>'}`;
   const hint = q.hint ? `<span class="hint">${esc(q.hint)}</span>` : '';
   if (q.type === 'multiselect') return `<fieldset class="field" id="field-${esc(q.id)}"><legend>${title}</legend>${hint}<div class="checkbox-grid">${q.options.map((option, i) => `<label class="check-option"><input type="checkbox" name="${esc(q.id)}" value="${esc(option)}" ${Array.isArray(value) && value.includes(option) ? 'checked' : ''}>${esc(option)}</label>`).join('')}</div></fieldset>`;
+  if (q.type === 'select' && q.options[0].startsWith('1 —')) {
+    return `<fieldset class="field" id="field-${esc(q.id)}"><legend>${title}</legend>${hint}<div class="rating-options">${q.options.map(option => `<label class="rating-option"><input type="radio" name="${esc(q.id)}" value="${esc(option)}" ${value === option ? 'checked' : ''}><span>${esc(option)}</span></label>`).join('')}</div></fieldset>`;
+  }
   const attrs = `id="${esc(q.id)}" name="${esc(q.id)}" ${q.required ? 'required' : ''}`;
   let control;
   if (q.type === 'select') control = `<select ${attrs}><option value="">Selecione uma opção</option>${q.options.map(option => `<option ${value === option ? 'selected' : ''}>${esc(option)}</option>`).join('')}</select>`;
@@ -148,9 +176,10 @@ function collectDraft() {
   const form = document.querySelector('#survey-form'); if (!form) return;
   if (step === 0) { draft.name = form.elements.name.value; draft.company = form.elements.company.value; }
   else if (step < allSteps().length - 1) {
-    for (const q of config.questionnaire.sections[step - 1].questions) draft.answers[q.id] = q.type === 'multiselect' ? [...form.querySelectorAll('input[type=checkbox]:checked')].filter(el => el.name === q.id).map(el => el.value) : form.elements[q.id].value;
+    for (const q of config.questionnaire.sections[step - 1].questions) if (isQuestionVisible(q, draft.answers) && form.elements[q.id]) draft.answers[q.id] = q.type === 'multiselect' ? [...form.querySelectorAll('input[type=checkbox]:checked')].filter(el => el.name === q.id).map(el => el.value) : form.elements[q.id].value;
   } else draft.consent = form.elements.consent.checked;
   saveDraft();
+  updateCompletion();
 }
 function fieldErrors(errors) {
   document.querySelectorAll('.field-error').forEach(el => el.remove());
@@ -171,6 +200,7 @@ function currentErrors() {
     if (!draft.company.trim()) errors.company = 'Informe a empresa.';
   } else if (step < allSteps().length - 1) {
     for (const q of config.questionnaire.sections[step - 1].questions) {
+      if (!isQuestionVisible(q, draft.answers)) continue;
       const value = draft.answers[q.id];
       if (q.required && (!value || Array.isArray(value) && !value.length || typeof value === 'string' && !value.trim())) errors[q.id] = 'Preencha este campo para continuar.';
       if (Array.isArray(value) && value.includes('Nenhuma') && value.length > 1) errors[q.id] = 'Selecione “Nenhuma” sozinha ou escolha as ferramentas utilizadas.';
@@ -204,7 +234,7 @@ async function nextStep(event) {
 }
 function review() {
   const pair = (label, value) => `<dt>${esc(label)}</dt><dd>${esc(Array.isArray(value) ? value.join(', ') : value === '' || value == null ? 'Não informado' : value)}</dd>`;
-  return `<section class="review-group"><h3>Identificação</h3><dl>${pair('Nome', draft.name)}${pair('E-mail', user.email)}${pair('Empresa', draft.company)}</dl></section>${config.questionnaire.sections.map(s => `<section class="review-group"><h3>${esc(s.title)}</h3><dl>${s.questions.map(q => pair(q.label, draft.answers[q.id])).join('')}</dl></section>`).join('')}<label class="consent"><input id="consent" name="consent" type="checkbox" ${draft.consent ? 'checked' : ''}><span>${esc(config.questionnaire.consentText || 'Confirmo minha participação voluntária.')} ${privacyButton()}.</span></label>`;
+  return `<section class="review-group"><h3>Identificação</h3><dl>${pair('Nome', draft.name)}${pair('E-mail', user.email)}${pair('Empresa', draft.company)}</dl></section>${config.questionnaire.sections.map(s => `<section class="review-group"><h3>${esc(s.title)}</h3><dl>${s.questions.filter(q => isQuestionVisible(q, draft.answers)).map(q => pair(q.label, draft.answers[q.id])).join('')}</dl></section>`).join('')}<label class="consent"><input id="consent" name="consent" type="checkbox" ${draft.consent ? 'checked' : ''}><span>${esc(config.questionnaire.consentText || 'Confirmo minha participação voluntária.')} ${privacyButton()}.</span></label>`;
 }
 function renderSuccess() {
   app.innerHTML = `<section class="success-card"><div class="success-icon" aria-hidden="true">✓</div><span class="eyebrow">PARTICIPAÇÃO CONCLUÍDA</span><h1>Sua perspectiva<br>faz a diferença.</h1><p>Obrigado por compartilhar sua experiência.<br>Suas respostas foram registradas com sucesso.</p><div class="receipt"><span class="eyebrow">COMPROVANTE DE PARTICIPAÇÃO</span><p>${esc(user.email)}<br>${esc(date(user.receipt.createdAt))}</p><code>${esc(user.receipt.id)}</code></div><p class="small">É permitida uma resposta por conta Google.</p><div class="success-actions"><button class="button secondary" data-action="qr">${icons.qr} Compartilhar pesquisa</button>${user.admin ? '<button class="button" data-action="admin">Ver resultados →</button>' : ''}</div></section>`;

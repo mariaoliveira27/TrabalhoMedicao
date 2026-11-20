@@ -1,7 +1,7 @@
 {
-  "version": "2",
+  "version": "3",
   "title": "Medição na prática",
-  "description": "Compartilhe como sua empresa acompanha processos e resultados.",
+  "description": "Compartilhe sua experiência com métricas e avaliação de desempenho.",
   "notice": "Questionário inicial: as perguntas devem ser revisadas pela equipe do trabalho antes da coleta oficial.",
   "consentText": "Confirmo minha participação voluntária e entendo que meu nome, empresa e respostas serão associados à minha conta para esta pesquisa acadêmica. Li como meus dados são usados.",
   "sections": [
@@ -10,10 +10,56 @@
       "title": "Sua realidade",
       "description": "Conte um pouco sobre o contexto da sua empresa.",
       "questions": [
-        { "id": "setor", "label": "Em qual setor a empresa atua?", "type": "select", "required": true, "options": ["Tecnologia", "Indústria", "Comércio", "Serviços", "Construção civil", "Educação", "Saúde", "Outro"] },
-        { "id": "porte", "label": "Quantas pessoas trabalham na empresa?", "type": "select", "required": true, "options": ["Até 9", "10 a 49", "50 a 99", "100 a 499", "500 ou mais", "Não sei informar"] },
-        { "id": "cargo", "label": "Qual é seu cargo ou área de atuação?", "type": "text", "required": true, "maxLength": 160 },
-        { "id": "experiencia", "label": "Há quanto tempo você atua nessa área?", "type": "select", "required": true, "options": ["Menos de 1 ano", "1 a 3 anos", "4 a 6 anos", "7 a 10 anos", "Mais de 10 anos"] }
+        {
+          "id": "setor",
+          "label": "Em qual setor a empresa atua?",
+          "type": "select",
+          "required": true,
+          "options": [
+            "Tecnologia",
+            "Indústria",
+            "Comércio",
+            "Serviços",
+            "Construção civil",
+            "Educação",
+            "Saúde",
+            "Outro"
+          ]
+        },
+        {
+          "id": "porte",
+          "label": "Quantas pessoas trabalham na empresa?",
+          "type": "select",
+          "required": true,
+          "options": [
+            "Até 9",
+            "10 a 49",
+            "50 a 99",
+            "100 a 499",
+            "500 ou mais",
+            "Não sei informar"
+          ]
+        },
+        {
+          "id": "cargo",
+          "label": "Qual é seu cargo ou área de atuação?",
+          "type": "text",
+          "required": true,
+          "maxLength": 160
+        },
+        {
+          "id": "experiencia",
+          "label": "Há quanto tempo você atua nessa área?",
+          "type": "select",
+          "required": true,
+          "options": [
+            "Menos de 1 ano",
+            "1 a 3 anos",
+            "4 a 6 anos",
+            "7 a 10 anos",
+            "Mais de 10 anos"
+          ]
+        }
       ]
     },
     {
@@ -21,25 +67,253 @@
       "title": "Medição e indicadores",
       "description": "Queremos entender como a avaliação de desempenho acontece na prática e como você usa seus resultados.",
       "questions": [
-        { "id": "uso", "label": "A empresa utiliza indicadores na avaliação de desempenho?", "type": "select", "required": true, "options": ["Sim, de forma estruturada", "Sim, de forma pontual", "Está começando a utilizar", "Não utiliza", "Não sei informar"] },
-        { "id": "frequencia", "label": "Com que frequência ocorre a avaliação de desempenho?", "type": "select", "required": true, "options": ["Diariamente", "Semanalmente", "Mensalmente", "Trimestralmente", "Semestralmente", "Anualmente", "Sem frequência definida", "Não sei informar"] },
-        { "id": "ferramentas", "label": "Quais ferramentas são utilizadas na avaliação de desempenho?", "hint": "Selecione todas as opções que se aplicam.", "type": "multiselect", "required": true, "options": ["Planilhas", "Sistema de gestão (ERP)", "Ferramentas de BI", "Plataforma de avaliação de desempenho", "Registros em papel", "Sistema próprio", "Nenhuma", "Outra", "Não sei informar"] },
-        { "id": "clareza", "label": "Em que medida as informações da avaliação ajudam você a tomar decisões no trabalho?", "hint": "De 1 (nada) a 5 (muito).", "type": "select", "required": true, "options": ["1 — Nada", "2", "3", "4", "5 — Muito", "Não se aplica"] },
-        { "id": "quantidade_indicadores", "label": "Quantos indicadores de desempenho você acompanha, aproximadamente?", "hint": "Se não souber, deixe em branco. Informe um número inteiro.", "type": "number", "required": false, "min": 0, "max": 10000, "integer": true },
-        { "id": "tempo_semanal", "label": "Quantos minutos por semana você dedica ao acompanhamento desses indicadores?", "hint": "Se não souber, deixe em branco.", "type": "number", "required": false, "min": 0, "max": 10080 },
-        { "id": "desafios", "label": "Qual é o maior desafio para medir e acompanhar o desempenho?", "type": "textarea", "required": true, "maxLength": 2000 },
-        { "id": "metricas_adotadas", "label": "Quais métricas ou indicadores são usados na avaliação de desempenho?", "type": "textarea", "required": true, "maxLength": 2000 },
-        { "id": "processo_avaliacao", "label": "Como a avaliação de desempenho é realizada na prática?", "type": "textarea", "required": true, "maxLength": 2000 },
-        { "id": "criterios", "label": "Quais critérios de avaliação são comunicados a você, se houver?", "type": "textarea", "required": true, "maxLength": 2000 },
-        { "id": "feedback", "label": "Como você recebe feedback sobre o resultado da avaliação, se houver?", "type": "textarea", "required": true, "maxLength": 2000 },
-        { "id": "priorizacao", "label": "Em que medida as informações da avaliação ajudam você a definir prioridades no trabalho?", "hint": "De 1 (nada) a 5 (muito).", "type": "select", "required": true, "options": ["1 — Nada", "2", "3", "4", "5 — Muito", "Não se aplica"] },
-        { "id": "melhorias", "label": "Em que medida as informações da avaliação ajudam você a identificar oportunidades de melhoria?", "hint": "De 1 (nada) a 5 (muito).", "type": "select", "required": true, "options": ["1 — Nada", "2", "3", "4", "5 — Muito", "Não se aplica"] },
-        { "id": "exemplos_uso", "label": "Descreva uma situação em que as informações da avaliação foram úteis ou pouco úteis para definir uma prioridade, identificar uma melhoria ou tomar uma decisão.", "type": "textarea", "required": true, "maxLength": 3000 },
-        { "id": "justica", "label": "Quão justo você considera o processo de avaliação de desempenho?", "hint": "De 1 (nada justo) a 5 (muito justo).", "type": "select", "required": true, "options": ["1 — Nada justo", "2", "3", "4", "5 — Muito justo", "Não se aplica"] },
-        { "id": "satisfacao", "label": "Quão satisfeito(a) você está com o processo de avaliação de desempenho?", "hint": "De 1 (nada satisfeito[a]) a 5 (muito satisfeito[a]).", "type": "select", "required": true, "options": ["1 — Nada satisfeito(a)", "2", "3", "4", "5 — Muito satisfeito(a)", "Não se aplica"] },
-        { "id": "razoes_justica", "label": "O que levou você a atribuir essa nota à justiça do processo de avaliação?", "type": "textarea", "required": true, "maxLength": 2000 },
-        { "id": "razoes_satisfacao", "label": "O que levou você a atribuir essa nota à sua satisfação com o processo de avaliação?", "type": "textarea", "required": true, "maxLength": 2000 },
-        { "id": "comentarios", "label": "Gostaria de acrescentar algo?", "type": "textarea", "required": false, "maxLength": 2000 }
+        {
+          "id": "uso",
+          "label": "A empresa utiliza indicadores na avaliação de desempenho?",
+          "type": "select",
+          "required": true,
+          "options": [
+            "Sim, de forma estruturada",
+            "Sim, de forma pontual",
+            "Está começando a utilizar",
+            "Não utiliza",
+            "Não sei informar"
+          ]
+        },
+        {
+          "id": "frequencia",
+          "label": "Com que frequência ocorre a avaliação de desempenho?",
+          "type": "select",
+          "required": true,
+          "options": [
+            "Diariamente",
+            "Semanalmente",
+            "Mensalmente",
+            "Trimestralmente",
+            "Semestralmente",
+            "Anualmente",
+            "Sem frequência definida",
+            "Não sei informar",
+            "Não há avaliação de desempenho"
+          ]
+        },
+        {
+          "id": "ferramentas",
+          "label": "Quais ferramentas são utilizadas na avaliação de desempenho?",
+          "hint": "Selecione todas as opções que se aplicam.",
+          "type": "multiselect",
+          "required": true,
+          "options": [
+            "Planilhas",
+            "Sistema de gestão (ERP)",
+            "Ferramentas de BI",
+            "Plataforma de avaliação de desempenho",
+            "Registros em papel",
+            "Sistema próprio",
+            "Nenhuma",
+            "Outra",
+            "Não sei informar"
+          ]
+        },
+        {
+          "id": "atencao",
+          "label": "Para confirmar a leitura desta pergunta, selecione a opção “Entendi”.",
+          "type": "select",
+          "required": true,
+          "options": [
+            "Entendi",
+            "Não entendi"
+          ],
+          "hint": "Este item faz parte do controle de qualidade da pesquisa."
+        },
+        {
+          "id": "clareza",
+          "label": "Em que medida as informações da avaliação ajudam você a tomar decisões no trabalho?",
+          "hint": "De 1 (nada) a 5 (muito).",
+          "type": "select",
+          "required": true,
+          "options": [
+            "1 — Nada",
+            "2",
+            "3",
+            "4",
+            "5 — Muito",
+            "Não se aplica",
+            "Não sei informar"
+          ]
+        },
+        {
+          "id": "quantidade_indicadores",
+          "label": "Quantos indicadores de desempenho você acompanha, aproximadamente?",
+          "hint": "Se não souber, deixe em branco. Informe um número inteiro.",
+          "type": "number",
+          "required": false,
+          "min": 0,
+          "max": 10000,
+          "integer": true
+        },
+        {
+          "id": "tempo_semanal",
+          "label": "Quantos minutos por semana você dedica ao acompanhamento desses indicadores?",
+          "hint": "Se não souber, deixe em branco.",
+          "type": "number",
+          "required": false,
+          "min": 0,
+          "max": 10080
+        },
+        {
+          "id": "desafios",
+          "label": "Qual é o maior desafio para medir e acompanhar o desempenho?",
+          "type": "textarea",
+          "required": true,
+          "maxLength": 2000,
+          "hint": "Se não puder responder, escreva “Não sei informar”, “Não há avaliação de desempenho” ou “Não tenho acesso a essas informações”, conforme sua situação. Se a pergunta não se aplicar à sua experiência, escreva “Não se aplica”."
+        },
+        {
+          "id": "metricas_adotadas",
+          "label": "Quais métricas ou indicadores são usados na avaliação de desempenho?",
+          "type": "textarea",
+          "required": true,
+          "maxLength": 2000,
+          "hint": "Se não puder responder, escreva “Não sei informar”, “Não há avaliação de desempenho” ou “Não tenho acesso a essas informações”, conforme sua situação. Se a pergunta não se aplicar à sua experiência, escreva “Não se aplica”."
+        },
+        {
+          "id": "processo_avaliacao",
+          "label": "Como a avaliação de desempenho é realizada na prática?",
+          "type": "textarea",
+          "required": true,
+          "maxLength": 2000,
+          "hint": "Se não puder responder, escreva “Não sei informar”, “Não há avaliação de desempenho” ou “Não tenho acesso a essas informações”, conforme sua situação. Se a pergunta não se aplicar à sua experiência, escreva “Não se aplica”."
+        },
+        {
+          "id": "criterios",
+          "label": "Quais critérios de avaliação são comunicados a você, se houver?",
+          "type": "textarea",
+          "required": true,
+          "maxLength": 2000,
+          "hint": "Se não puder responder, escreva “Não sei informar”, “Não há avaliação de desempenho” ou “Não tenho acesso a essas informações”, conforme sua situação. Se a pergunta não se aplicar à sua experiência, escreva “Não se aplica”."
+        },
+        {
+          "id": "feedback",
+          "label": "Como você recebe feedback sobre o resultado da avaliação, se houver?",
+          "type": "textarea",
+          "required": true,
+          "maxLength": 2000,
+          "hint": "Se não puder responder, escreva “Não sei informar”, “Não há avaliação de desempenho” ou “Não tenho acesso a essas informações”, conforme sua situação. Se a pergunta não se aplicar à sua experiência, escreva “Não se aplica”."
+        },
+        {
+          "id": "priorizacao",
+          "label": "Em que medida as informações da avaliação ajudam você a definir prioridades no trabalho?",
+          "hint": "De 1 (nada) a 5 (muito).",
+          "type": "select",
+          "required": true,
+          "options": [
+            "1 — Nada",
+            "2",
+            "3",
+            "4",
+            "5 — Muito",
+            "Não se aplica",
+            "Não sei informar"
+          ]
+        },
+        {
+          "id": "melhorias",
+          "label": "Em que medida as informações da avaliação ajudam você a identificar oportunidades de melhoria?",
+          "hint": "De 1 (nada) a 5 (muito).",
+          "type": "select",
+          "required": true,
+          "options": [
+            "1 — Nada",
+            "2",
+            "3",
+            "4",
+            "5 — Muito",
+            "Não se aplica",
+            "Não sei informar"
+          ]
+        },
+        {
+          "id": "exemplos_uso",
+          "label": "Descreva uma situação em que as informações da avaliação foram úteis ou pouco úteis para definir uma prioridade, identificar uma melhoria ou tomar uma decisão.",
+          "type": "textarea",
+          "required": true,
+          "maxLength": 3000,
+          "hint": "Se não puder responder, escreva “Não sei informar”, “Não há avaliação de desempenho” ou “Não tenho acesso a essas informações”, conforme sua situação. Se a pergunta não se aplicar à sua experiência, escreva “Não se aplica”."
+        },
+        {
+          "id": "justica",
+          "label": "Quão justo você considera o processo de avaliação de desempenho?",
+          "hint": "De 1 (muito injusto) a 5 (muito justo).",
+          "type": "select",
+          "required": true,
+          "options": [
+            "1 — Muito injusto",
+            "2",
+            "3",
+            "4",
+            "5 — Muito justo",
+            "Não se aplica",
+            "Não sei informar"
+          ]
+        },
+        {
+          "id": "satisfacao",
+          "label": "Quão satisfeito(a) você está com o processo de avaliação de desempenho?",
+          "hint": "De 1 (muito insatisfeito(a)) a 5 (muito satisfeito(a)).",
+          "type": "select",
+          "required": true,
+          "options": [
+            "1 — Muito insatisfeito(a)",
+            "2",
+            "3",
+            "4",
+            "5 — Muito satisfeito(a)",
+            "Não se aplica",
+            "Não sei informar"
+          ]
+        },
+        {
+          "id": "razoes_justica",
+          "label": "O que levou você a atribuir essa nota à justiça do processo de avaliação?",
+          "type": "textarea",
+          "required": true,
+          "maxLength": 2000,
+          "showWhen": {
+            "question": "justica",
+            "values": [
+              "1 — Muito injusto",
+              "2",
+              "3",
+              "4",
+              "5 — Muito justo"
+            ]
+          }
+        },
+        {
+          "id": "razoes_satisfacao",
+          "label": "O que levou você a atribuir essa nota à sua satisfação com o processo de avaliação?",
+          "type": "textarea",
+          "required": true,
+          "maxLength": 2000,
+          "showWhen": {
+            "question": "satisfacao",
+            "values": [
+              "1 — Muito insatisfeito(a)",
+              "2",
+              "3",
+              "4",
+              "5 — Muito satisfeito(a)"
+            ]
+          }
+        },
+        {
+          "id": "comentarios",
+          "label": "Gostaria de acrescentar algo?",
+          "type": "textarea",
+          "required": false,
+          "maxLength": 2000
+        }
       ]
     }
   ]
