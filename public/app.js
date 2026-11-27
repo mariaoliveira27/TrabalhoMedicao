@@ -1,5 +1,8 @@
+import { drawWhiteboardSketches, fitWhiteboardText, drawWhiteboardConnections } from './whiteboard.js?v=rq-dot-matrix-restaurado';
+import { presentationSlides } from './presentation.js?v=fechamento-restaurado';
+import { significance } from './research-tests.js?v=rq1-oito-testes';
 import { isQuestionVisible } from './questionnaire.js';
-import { renderCharts, bindChartControls } from './charts.js';
+import { renderCharts, bindChartControls, renderResearchViolin } from './charts.js?v=sem-descricao-inferior';
 
 const app = document.querySelector('#app');
 const account = document.querySelector('#account');
@@ -25,7 +28,11 @@ async function api(path, options = {}) {
   }
   return data;
 }
-function date(value) { return new Date(value).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }); }
+function date(value, simulated = false) {
+  return new Date(value).toLocaleString('pt-BR', {
+    dateStyle: 'short', timeStyle: 'short', timeZone: simulated ? 'America/Sao_Paulo' : undefined
+  });
+}
 function toast(message) {
   const element = document.querySelector('#toast');
   element.textContent = message; element.hidden = false;
@@ -108,9 +115,15 @@ async function setupGoogle() {
 async function loadUser() {
   user = await api('/me');
   account.hidden = false;
-  account.innerHTML = `<div class="account-info"><span class="avatar">${esc((user.name || user.email).slice(0, 1).toUpperCase())}</span><span class="account-name">${esc(user.name || 'Participante')}<span class="email">${esc(user.email)}</span></span>${user.admin ? '<button class="text-button" data-action="admin">Resultados</button>' : ''}<button class="text-button" data-action="logout">Sair</button></div>`;
+  account.innerHTML = `<div class="account-info"><span class="avatar">${esc((user.name || user.email).slice(0, 1).toUpperCase())}</span><span class="account-name">${esc(user.name || 'Participante')}<span class="email">${esc(user.email)}</span></span>${user.admin ? '<button class="text-button" data-action="admin-presentation">Apresentação</button>' : ''}<button class="text-button" data-action="logout">Sair</button></div>`;
   loadDraft(); step = 0;
-  if (user.receipt) renderSuccess(); else renderSurvey();
+  if (user.admin) {
+    await openPresentation();
+  } else if (user.receipt) {
+    renderSuccess();
+  } else {
+    renderSurvey();
+  }
 }
 const allSteps = () => ['Identificação', ...config.questionnaire.sections.map(s => s.title), 'Revisão'];
 function renderSurvey() {
@@ -237,30 +250,263 @@ function review() {
   return `<section class="review-group"><h3>Identificação</h3><dl>${pair('Nome', draft.name)}${pair('E-mail', user.email)}${pair('Empresa', draft.company)}</dl></section>${config.questionnaire.sections.map(s => `<section class="review-group"><h3>${esc(s.title)}</h3><dl>${s.questions.filter(q => isQuestionVisible(q, draft.answers)).map(q => pair(q.label, draft.answers[q.id])).join('')}</dl></section>`).join('')}<label class="consent"><input id="consent" name="consent" type="checkbox" ${draft.consent ? 'checked' : ''}><span>${esc(config.questionnaire.consentText || 'Confirmo minha participação voluntária.')} ${privacyButton()}.</span></label>`;
 }
 function renderSuccess() {
-  app.innerHTML = `<section class="success-card"><div class="success-icon" aria-hidden="true">✓</div><span class="eyebrow">PARTICIPAÇÃO CONCLUÍDA</span><h1>Sua perspectiva<br>faz a diferença.</h1><p>Obrigado por compartilhar sua experiência.<br>Suas respostas foram registradas com sucesso.</p><div class="receipt"><span class="eyebrow">COMPROVANTE DE PARTICIPAÇÃO</span><p>${esc(user.email)}<br>${esc(date(user.receipt.createdAt))}</p><code>${esc(user.receipt.id)}</code></div><p class="small">É permitida uma resposta por conta Google.</p><div class="success-actions"><button class="button secondary" data-action="qr">${icons.qr} Compartilhar pesquisa</button>${user.admin ? '<button class="button" data-action="admin">Ver resultados →</button>' : ''}</div></section>`;
+  app.innerHTML = `<section class="success-card"><div class="success-icon" aria-hidden="true">✓</div><span class="eyebrow">PARTICIPAÇÃO CONCLUÍDA</span><h1>Sua perspectiva<br>faz a diferença.</h1><p>Obrigado por compartilhar sua experiência.<br>Suas respostas foram registradas com sucesso.</p><div class="receipt"><span class="eyebrow">COMPROVANTE DE PARTICIPAÇÃO</span><p>${esc(user.email)}<br>${esc(date(user.receipt.createdAt))}</p><code>${esc(user.receipt.id)}</code></div><p class="small">É permitida uma resposta por conta Google.</p><div class="success-actions"><button class="button secondary" data-action="qr">${icons.qr} Compartilhar pesquisa</button>${user.admin ? '<button class="button" data-action="admin-presentation">Ver resultados →</button>' : ''}</div></section>`;
+}
+function renderQuestionnaireGroups(groups) {
+  return `<div class="presentation-items questionnaire-groups">${groups.map(({ label, format, questions: [example, ...other] }) => {
+    const preview = example.type === 'textarea'
+      ? '<p class="questionnaire-writing" aria-hidden="true"></p>'
+      : example.id === 'clareza'
+        ? '<div class="questionnaire-scale" aria-hidden="true"><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span></div>'
+        : `<ul class="questionnaire-options">${example.options.slice(0, 2).map(option => `<li>${esc(option)}</li>`).join('')}</ul>`;
+    return `<section class="questionnaire-group">
+      <h3>${esc(label)}</h3>
+      <p class="questionnaire-format">${esc(format)}</p>
+      <p class="questionnaire-prompt">${esc(example.label)}</p>
+      ${preview}
+      <details><summary>Mais ${other.length} perguntas</summary><ul>${other.map(question => `<li>${esc(question.label)}</li>`).join('')}</ul></details>
+    </section>`;
+  }).join('')}</div>`;
+}
+
+function renderChestMap(nodes, total) {
+  return `<div class="chest-map" aria-label="Mapa de contagens">${nodes.map(({ label, detail, items }) => `
+    <details class="chest-node" open>
+      <summary><strong>${esc(label)}</strong><span>${esc(detail)}</span></summary>
+      <dl>${items.map(([name, count, withoutRating = []]) => `<div>
+        <dt>${esc(name)}</dt><dd>${count} de ${total}</dd>
+        ${withoutRating.map(([category, quantity]) => `<dd class="chest-note">${esc(category)} · ${quantity} de ${total}</dd>`).join('')}
+      </div>`).join('')}</dl>
+    </details>`).join('')}</div>`;
+}
+
+function renderPerceptionMatrix(pairs) {
+  const order = [1, 2, 3, 4, 5, 0];
+  const peak = Math.max(1, ...pairs.flat());
+  const label = score => score || 'Sem nota';
+  return `<div class="table-wrap research-matrix-wrap">
+    <table class="research-matrix">
+      <caption class="research-note">O número em cada célula indica quantos registros têm essa combinação de notas.</caption>
+      <thead><tr><th scope="col" rowspan="2">Justiça ↓</th><th scope="colgroup" colspan="6">Satisfação →</th></tr>
+      <tr>${order.map(score => `<th scope="col">${label(score)}</th>`).join('')}</tr></thead>
+      <tbody>${order.map(justice => `<tr><th scope="row">${label(justice)}</th>${order.map(satisfaction => {
+        const count = pairs[justice][satisfaction];
+        const size = count ? 40 + 52 * Math.sqrt(count / peak) : 0;
+        return `<td class="${justice && satisfaction ? '' : 'matrix-missing'}">
+          <span class="matrix-count" style="--bubble-size:${size}%">${count}</span></td>`;
+      }).join('')}</tr>`).join('')}</tbody>
+    </table>
+  </div>`;
+}
+
+const fmtPercent = new Intl.NumberFormat('pt-BR', { style: 'percent', maximumFractionDigits: 1 }).format;
+const fmtDecimal = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 1 }).format;
+const fmtP = value => value < .001 ? '< 0,001' : value.toFixed(3).replace('.', ',');
+
+function renderHypothesisGraph(test) {
+  if (!test.n) return '<p class="research-note">Sem respostas válidas para calcular o teste e a margem.</p>';
+  const { label, n, count, estimate, lower, upper, nullBars, p, adjusted } = test;
+  const max = Math.max(...nullBars.map(bar => bar.probability));
+  const baseline = 129;
+  const x = k => 24 + 592 * k / n;
+  const y = probability => baseline - 110 * probability / max;
+  const points = nullBars.map(({ probability }, k) => [x(k), y(probability)]);
+  const pointList = coordinates => coordinates.map(([px, py]) => `${px.toFixed(2)},${py.toFixed(2)}`).join(' ');
+  const area = coordinates => pointList([[coordinates[0][0], baseline], ...coordinates, [coordinates.at(-1)[0], baseline]]);
+  const tail = nullBars.findLastIndex(({ reject }, k) => reject && k < n / 2);
+  const tails = tail < 0 ? '' : (() => {
+    const cut = (points[tail][1] + points[tail + 1][1]) / 2;
+    const left = [...points.slice(0, tail + 1), [x(tail + .5), cut]];
+    const right = [[x(n - tail - .5), cut], ...points.slice(n - tail)];
+    return `<polygon class="bell-reject" points="${area(left)}"/><polygon class="bell-reject" points="${area(right)}"/>
+      <path class="bell-tail-mark" d="M 24 ${baseline} H ${left.at(-1)[0]} M ${right[0][0]} ${baseline} H 616"/>`;
+  })();
+  const rejection = tail < 0 ? 'Sem região de rejeição para esta base.'
+    : tail === 0 ? `Rejeição em 0 ou ${n}.` : `Rejeição até ${tail} ou a partir de ${n - tail}.`;
+  return `<figure class="hypothesis-bell">
+    <svg class="bell-plot" viewBox="0 0 640 154" role="img" aria-label="Distribuição binomial sob H₀. ${esc(label)}. Contagem observada ${count} de ${n}. ${esc(rejection)}">
+      <polygon class="bell-area" points="${area(points)}"/>
+      <line class="bell-axis" x1="24" x2="616" y1="${baseline}" y2="${baseline}"/>
+      ${tails}
+      <polyline class="bell-curve" points="${pointList(points)}"/>
+      <line class="bell-reference" x1="${x(n / 2)}" x2="${x(n / 2)}" y1="19" y2="${baseline}"/>
+      <line class="bell-observed" x1="${x(count)}" x2="${x(count)}" y1="13" y2="${baseline}"/>
+      <circle class="bell-point" cx="${x(count)}" cy="${points[count][1]}" r="4"/>
+      <text x="24" y="150">0</text>
+      <text x="320" y="150" text-anchor="middle">${fmtDecimal(n / 2)} (H₀ de 50%)</text>
+      <text x="616" y="150" text-anchor="end">${n}</text>
+    </svg>
+    <p class="research-note"><strong class="null-key">Azul · ${count}/${n} observado</strong>${tail >= 0 ? ' · Vermelho · ' : ' · '}${esc(rejection)}</p>
+  </figure>
+  <dl class="hypothesis-metrics">
+    <div><dt>Efeito frente a 50%</dt><dd>${fmtDecimal((estimate-.5)*100)} p.p.</dd></div>
+    <div><dt>p ajustado</dt><dd>${esc(fmtP(adjusted))} <small>p bruto ${esc(fmtP(p))}</small></dd></div>
+    <div><dt>IC 95%</dt><dd>${fmtPercent(lower)} a ${fmtPercent(upper)}</dd></div>
+    <div><dt>Margem de erro</dt><dd>−${fmtDecimal((estimate - lower) * 100)} / +${fmtDecimal((upper - estimate) * 100)} p.p.</dd></div>
+  </dl>`;
+}
+
+function renderHypotheses(tests, total, note) {
+  return `<div class="hypothesis-body"><p class="research-note">Teste binomial exato bilateral · referência de 50% · ajuste de Bonferroni.${note ? " " + esc(note) : ""}</p>
+    ${tests.length > 1 ? `<label class="hypothesis-select">Indicador <select>${tests.map(({ label }, index) => `<option value="${index}">${esc(label)}</option>`).join('')}</select></label>` : ''}
+    ${tests.map((test, index) => `<div data-hypothesis-graph="${index}" ${index ? 'hidden' : ''}><p class="research-note"><strong>${esc(test.label)}</strong><br>H₀: a proporção ${test.nullDescription || (test.label === 'Uso estruturado ou pontual declarado' ? 'de uso estruturado ou pontual' : 'de notas favoráveis (4 ou 5) neste indicador')} é 50%.<br>H₁: essa proporção é diferente de 50%.</p>${renderHypothesisGraph(test)}</div>`).join('')}
+  </div>`;
+}
+
+function renderResearchResults(result, rows) {
+  const total = rows.length;
+  const format = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 2 });
+  if (result.ratings) {
+    const faces = ['M18 36 Q30 20 42 36', 'M19 34 Q30 26 41 34', 'M19 31 H41', 'M19 28 Q30 39 41 28', 'M17 27 Q30 46 43 27'];
+    return `<div class="perception-faces">${result.ratings.map(({ label, distribution, missing }) => `<section class="perception-face-row"><h3>${esc(label)}</h3><div class="perception-face-scale">${distribution.map((count, i) => `<div class="perception-face-score" style="--face-color:${['#aa383c','#bd7041','#8a8060','#558874','#22745c'][i]}"><span class="face-rating">Nota ${i + 1}</span><svg viewBox="0 0 60 60" role="img" aria-label="${['Muito triste','Triste','Neutra','Feliz','Muito feliz'][i]}"><circle cx="30" cy="30" r="26"/><circle class="face-eye" cx="21" cy="22" r="2"/><circle class="face-eye" cx="39" cy="22" r="2"/><path d="${faces[i]}"/></svg><strong>${count}</strong><span class="face-count-label">${count === 1 ? 'resposta' : 'respostas'}</span></div>`).join('')}</div><p class="research-note">Sem nota válida: ${missing}</p></section>`).join('')}</div>`;
+  }
+  const scores = ['1', '2', '3', '4', '5', 'Sem nota'];
+  const charts = result.bars ? `<div class="research-counts">${result.bars.map(({ title, values, note }) => `
+    <section class="research-plot">
+      <h3>${esc(title)}</h3>
+      <dl>${values.map(([label, count]) => `
+        <div class="research-bar"><dt>${esc(label)}</dt><dd>${count} de ${total}</dd>
+        <meter aria-hidden="true" min="0" max="${total || 1}" value="${count}"></meter></div>`).join('')}</dl>
+      ${note ? `<p class="research-note">${esc(note)}</p>` : ''}
+    </section>`).join('')}</div>` : result.numeric ? `
+    <div class="research-numeric">${result.numeric.map(({ key, label, median, q1, q3, n, unit, values }) => `
+      <figure class="research-violin">
+        <figcaption><strong>${esc(label)}</strong>
+          <span>${n ? `Mediana ${format.format(median)} ${esc(unit)} · Q1–Q3 ${format.format(q1)}–${format.format(q3)} · ${n} de ${total} respostas` : 'Sem valores numéricos'}</span>
+        </figcaption>
+        ${n >= 5 && values[0] !== values.at(-1) ? renderResearchViolin(rows, key) : n ? `<p class="research-note">Valores observados · ${values.map(value => format.format(value)).join(' · ')}</p>` : ''}
+      </figure>`).join('')}</div>
+    <p class="research-note">Nos violinos, a largura indica densidade estimada, o traço marca Q1–Q3 e o ponto branco marca a mediana.</p>` : result.ratings.map(({label, distribution, n, missing, summary}) => {
+    const colors = ['#a34930','#d78e70','#b3b6af','#72a4b5','#236779'];
+    const widths = distribution.map(v => n ? 100*v/n : 0);
+    let x = 100 - widths[0] - widths[1] - widths[2]/2;
+    const rects = widths.map((width,i) => {
+      const rect = '<rect x="'+x+'" width="'+width+'" height="9" fill="'+colors[i]+'"/>';
+      x += width;
+      return rect;
+    }).join('');
+    return '<figure class="research-plot"><strong>'+esc(label)+'</strong><svg width="100%" height="26" viewBox="0 0 200 9" preserveAspectRatio="none" aria-hidden="true">'+rects+'<path d="M100 0v9" stroke="#333" stroke-width=".4"/></svg><figcaption>'+distribution.map((v,i) => 'Nota '+(i+1)+' · '+v).join(' | ')+' · Sem nota: '+missing+'<br>'+esc(summary)+'</figcaption></figure>';
+  }).join('') + (result.pairs ? renderPerceptionMatrix(result.pairs) : '');
+  return charts;
+
+}
+
+async function openPresentation(filters = {}, cached = null, mode = 'mixed') {
+  app.innerHTML = '<div class="loading">Carregando apresentação…</div>';
+  try {
+    const sources = cached || await Promise.all([api('/admin/responses'), api('/admin/demonstration')]);
+    const [official, demonstration] = sources;
+    const population = mode === 'mixed' ? demonstration.responses : official.responses;
+    const simulated = population.filter(row => row.simulated).length;
+    const segmentFields = { experiencia: 'Experiência', setor: 'Setor', porte: 'Porte', cargo: 'Cargo' };
+    const selected = population.filter(row => Object.entries(filters).every(([key,value]) => !value || row.answers[key] === value));
+    const slides = presentationSlides(official.responses, config.questionnaire, selected);
+    const sample = official.sample;
+    const controls = Object.entries(segmentFields).map(([key,label]) => {
+      const options = [...new Set(population.map(row => row.answers[key]).filter(Boolean))].sort();
+      return '<label>' + label + ' <select data-segment="' + key + '"><option value="">Todos</option>' + options.map(v => '<option' + (filters[key] === v ? ' selected' : '') + '>' + esc(v) + '</option>').join('') + '</select></label>';
+    }).join(' ');
+    const profile = '<div class="segment-filters">' + controls + '</div><p>No segmento: ' + selected.length + '</p>';
+    app.innerHTML = `<section class="presentation" aria-label="Apresentação dos resultados">
+      <div class="presentation-top">
+        <div class="presentation-brand"></div>
+        <div class="presentation-account">
+          <button class="text-button" data-action="admin">Gerenciar respostas ↗</button>
+        </div>
+      </div>
+      <div class="presentation-track" tabindex="0" aria-label="Roteiro horizontal. Use as setas para rolar.">
+        ${slides.map((slide, index) => `<article class="presentation-slide" id="slide-${index}" aria-labelledby="slide-title-${index}">
+          <canvas class="board-outline" aria-hidden="true"></canvas>
+          <div class="board-content${slide.layout ? ' board-questions' : ''}${slide.layout === 'methodology' ? ' board-methodology' : ''}${slide.layout === 'response' ? ' board-response' : ''}${slide.result ? ' board-results' : ''}${slide.hypotheses ? ' board-hypothesis' : ''}">
+          <div class="presentation-lead">
+            ${slide.label ? `<p class="presentation-label">${esc(slide.label)}</p>` : ''}
+            <h2 id="slide-title-${index}">${esc(slide.title)}</h2>
+            ${slide.intro ? `<p class="presentation-intro">${esc(slide.intro)}</p>` : ''}
+          </div>
+          ${slide.hypotheses ? '' : '<canvas class="board-sketch" width="660" height="250" aria-hidden="true"></canvas>'}
+          <div class="presentation-content">${slide.hypotheses ? renderHypotheses(slide.hypotheses, selected.length, slide.testNote) : slide.result ? renderResearchResults(slide.result, selected) : slide.nodes ? profile + renderChestMap(slide.nodes, selected.length) : slide.groups ? renderQuestionnaireGroups(slide.groups) : slide.members ? `
+            <h3>Integrantes</h3>
+            <ul class="presentation-members">${slide.members.map(name => `<li>${esc(name)}</li>`).join('')}</ul>` : `
+            <dl class="presentation-items">${slide.items.map(([label, value, fraction, sampleProgress]) =>
+              `<div><dt>${esc(label)}</dt><dd>${sampleProgress ? `<strong class="sample-progress" aria-label="${sampleProgress.analyzed} registros analisados para uma meta de ${sampleProgress.target} respostas">${sampleProgress.analyzed} / ${sampleProgress.target} <span aria-hidden="true">☹︎</span></strong>` : ''}${esc(value)}${fraction == null ? '' : `<meter aria-hidden="true" min="0" max="1" value="${fraction}"></meter>`}</dd></div>`).join('')}</dl>`}</div>
+          </div>
+        </article>`).join('')}
+      </div>
+    </section>`;
+    app.querySelector('.presentation-brand').append(document.querySelector('.header .brand').cloneNode(true));
+    app.querySelector('.presentation-account').prepend(...Array.from(account.children, item => item.cloneNode(true)));
+    const presentation = app.querySelector('.presentation');
+    const track = presentation.querySelector('.presentation-track');
+    track.querySelectorAll('.hypothesis-select select').forEach(select => {
+      select.addEventListener('change', () => {
+        select.closest('.hypothesis-body').querySelectorAll('[data-hypothesis-graph]').forEach(graph => {
+          graph.hidden = graph.dataset.hypothesisGraph !== select.value;
+        });
+      });
+    });
+    for (const control of track.querySelectorAll('[data-segment]')) {
+      control.onchange = () => openPresentation({ ...filters, [control.dataset.segment]: control.value }, sources, mode);
+    }
+    drawWhiteboardSketches(track);
+    fitWhiteboardText(track);
+    drawWhiteboardConnections(track);
+    presentation.addEventListener('wheel', event => {
+      if (!event.cancelable || event.altKey || event.ctrlKey || event.metaKey || Math.abs(event.deltaX) >= Math.abs(event.deltaY)) return;
+
+      const unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? track.clientWidth : 1;
+      const max = track.scrollWidth - track.clientWidth;
+      const next = Math.min(max, Math.max(0, track.scrollLeft + event.deltaY * unit));
+      if (Math.abs(next - track.scrollLeft) < 1) return;
+
+      event.preventDefault();
+      track.scrollLeft = next;
+    }, { passive: false });
+    if (cached) {
+      track.querySelector('[data-segment]').closest('article').scrollIntoView({inline:'start', block:'nearest'});
+      track.querySelector('[data-segment]').focus({preventScroll:true});
+    } else focusHeading();
+  } catch (error) { showError(error); }
 }
 async function renderAdmin() {
   app.innerHTML = '<div class="loading">Carregando resultados…</div>';
   try {
-    const data = await api('/admin/responses'); adminRows = data.responses;
-    const companies = new Set(adminRows.map(r => r.company.toLocaleLowerCase().trim())).size;
-    const today = adminRows.filter(r => new Date(r.created_at).toLocaleDateString('pt-BR') === new Date().toLocaleDateString('pt-BR')).length;
-    app.innerHTML = `<section class="admin"><div class="admin-head"><div><span class="eyebrow">ÁREA DA EQUIPE</span><h1>Vozes que viram dados.</h1><p class="small">Acompanhe as participações e explore as respostas da pesquisa.</p></div><a class="button" href="${esc(basePath)}/api/admin/export" download>Exportar CSV ↓</a></div><div class="stats"><div class="stat"><strong>${adminRows.length}</strong><span>Participações</span></div><div class="stat"><strong>${companies}</strong><span>Empresas informadas</span></div><div class="stat"><strong>${today}</strong><span>Respostas hoje</span></div></div><div class="toolbar"><label><span class="hint">Buscar participante ou empresa</span><input id="search" type="text" placeholder="Digite um nome, e-mail ou empresa"></label><button class="button secondary" data-action="admin">Atualizar ↻</button></div><div id="results"></div><div class="admin-links"><button class="text-button" data-action="survey">Voltar à pesquisa</button><span class="small">Respostas identificadas · acesso restrito</span></div></section>`;
-    const charts = document.createElement('div'); charts.id = 'charts'; charts.innerHTML = renderCharts(adminRows);
+    const { responses } = await api('/admin/demonstration');
+    adminRows = responses;
+    const companies = new Set(adminRows.map(row => row.company.toLocaleLowerCase().trim())).size;
+    app.innerHTML = `<section class="admin">
+      <div class="stats">
+        <div class="stat"><strong>${adminRows.length}</strong><span>Registros exibidos</span></div>
+        <div class="stat"><strong>${companies}</strong><span>Empresas exibidas</span></div>
+      </div>
+      <div class="toolbar">
+        <label><span class="hint">Buscar participante ou empresa</span><input id="search" type="text" placeholder="Digite o número ou a empresa"></label>
+        <button class="button secondary" data-action="admin">Atualizar ↻</button>
+        <a class="button" href="${esc(basePath)}/api/admin/export?dataset=demonstration">Exportar CSV ↓</a>
+      </div>
+      <div id="results"></div>
+      <div class="admin-links"><button class="text-button" data-action="survey">Voltar à pesquisa</button><span class="small">Acesso restrito</span></div>
+    </section>`;
+    const charts = document.createElement('div');
+    charts.id = 'charts';
+    charts.innerHTML = '<p class="small">Setor é a atividade principal da empresa. “Registros em papel” é uma opção do campo de ferramentas de avaliação.</p>' + renderCharts(adminRows, { demonstration: true });
     document.querySelector('.stats').after(charts); bindChartControls(charts, adminRows);
-    renderRows(''); document.querySelector('#search').addEventListener('input', event => renderRows(event.target.value));
+    renderRows('');
+    document.querySelector('#search').addEventListener('input', event => renderRows(event.target.value));
   } catch (error) { app.innerHTML = '<div class="loading">Não foi possível carregar os resultados.</div>'; showError(error); }
 }
+function participantLabel(row) {
+  return 'Participante ' + (adminRows.indexOf(row) + 1);
+}
 function renderRows(query) {
-  const rows = adminRows.filter(row => `${row.name} ${row.email} ${row.company}`.toLocaleLowerCase().includes(query.toLocaleLowerCase()));
-  document.querySelector('#results').innerHTML = rows.length ? `<div class="table-wrap"><table><thead><tr><th>Participante</th><th>Empresa</th><th>Recebida em</th><th><span class="small">Detalhes</span></th></tr></thead><tbody>${rows.map(row => `<tr><td>${esc(row.name)}<span class="small">${esc(row.email)}</span></td><td>${esc(row.company)}</td><td>${esc(date(row.created_at))}</td><td><button class="text-button" data-detail="${esc(row.id)}">Ver resposta ↗</button></td></tr>`).join('')}</tbody></table></div>` : `<div class="table-wrap empty">${query ? 'Nenhum resultado para esta busca.' : 'Ainda não há participações. Compartilhe o QR code para começar.'}</div>`;
+  const rows = adminRows.filter(row => `${participantLabel(row)} ${row.company}`.toLocaleLowerCase().includes(query.toLocaleLowerCase()));
+  document.querySelector('#results').innerHTML = rows.length ? `<div class="table-wrap"><table><thead><tr><th>Participante</th><th>Empresa</th><th>Setor da empresa</th><th>Data</th><th><span class="small">Detalhes</span></th></tr></thead><tbody>${rows.map(row => `<tr><td>${esc(participantLabel(row))}</td><td>${esc(row.company)}</td><td>${esc(row.answers.setor || 'Não informado')}</td><td>${esc(date(row.created_at, row.simulated))}</td><td><button class="text-button" data-detail="${esc(row.id)}">Ver resposta ↗</button></td></tr>`).join('')}</tbody></table></div>` : `<div class="table-wrap empty">${query ? 'Nenhum resultado para esta busca.' : 'Ainda não há participações. Compartilhe o QR code para começar.'}</div>`;
 }
 function showDetail(id) {
   const row = adminRows.find(r => r.id === id); if (!row) return;
   document.querySelector('#detail-dialog')?.remove();
   const dialog = document.createElement('dialog'); dialog.id = 'detail-dialog'; dialog.setAttribute('aria-labelledby', 'detail-title');
   const labels = Object.fromEntries(config.questionnaire.sections.flatMap(s => s.questions.map(q => [q.id, q.label])));
-  dialog.innerHTML = `<button class="close icon-button" aria-label="Fechar resposta">×</button><span class="eyebrow">RESPOSTA · VERSÃO ${esc(row.version)}</span><h2 id="detail-title">${esc(row.name)}</h2><p>${esc(row.email)}<br>${esc(row.company)} · ${esc(date(row.created_at))}</p><div class="detail-list review-group"><dl>${Object.entries(row.answers).map(([id, value]) => `<dt>${esc(labels[id] || id)}</dt><dd>${esc(Array.isArray(value) ? value.join(', ') : value || 'Não informado')}</dd>`).join('')}</dl></div><p class="small">Participação confirmada em ${esc(date(row.consent_at))}.<br>Protocolo: ${esc(row.id)}</p>`;
+  dialog.innerHTML = `<button class="close icon-button" aria-label="Fechar resposta">×</button><span class="eyebrow">${row.simulated ? 'RESPOSTA SIMULADA' : 'RESPOSTA'} · VERSÃO ${esc(row.version)}</span><h2 id="detail-title">${esc(participantLabel(row))}</h2><p>${esc(row.company)}${row.simulated ? ' (referência)' : ''} · ${esc(date(row.created_at, row.simulated))}</p><div class="detail-list review-group"><dl>${Object.entries(row.answers).map(([id, value]) => `<dt>${esc(labels[id] || id)}</dt><dd>${esc(Array.isArray(value) ? value.join(', ') : value || 'Não informado')}</dd>`).join('')}</dl></div><p class="small">${row.simulated ? '' : `Participação confirmada em ${esc(date(row.consent_at))}.<br>`}Protocolo: ${esc(row.id)}</p>`;
   document.body.append(dialog); dialog.showModal(); dialog.querySelector('.close').onclick = () => dialog.close();
 }
 
@@ -271,7 +517,11 @@ document.addEventListener('click', async event => {
   if (action === 'qr') document.querySelector('#qr-dialog').showModal();
   if (action === 'privacy') document.querySelector('#privacy-dialog').showModal();
   if (action === 'back' && !busy) { collectDraft(); step = Math.max(0, step - 1); renderSurvey(); focusHeading(); }
-  if (action === 'admin') { await renderAdmin(); focusHeading(); }
+  if (action === 'admin-presentation') await openPresentation();
+  if (action === 'admin') {
+    await renderAdmin();
+    focusHeading();
+  }
   if (action === 'survey') { if (user.receipt) renderSuccess(); else renderSurvey(); focusHeading(); }
   if (action === 'logout' && !busy) {
     try { await api('/auth/logout', { method: 'POST' }); clearDraft(); user = null; window.google?.accounts.id.disableAutoSelect(); renderLogin(); toast('Você saiu da sua conta.'); } catch (error) { showError(error); }

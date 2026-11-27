@@ -43,6 +43,7 @@ async function fixture(t, env = {}) {
 }
 test('protected routes reject anonymous access and missing login challenge', async t => {
   const f = await fixture(t);
+  assert.equal((await f.request('/api/admin/simulated-responses')).status, 401);
   assert.equal((await f.request('/api/admin/responses')).status, 401);
   assert.equal((await f.request('/api/responses', { method: 'POST', body: '{}' })).status, 401);
   assert.equal((await f.request('/api/auth/google', { method: 'POST', body: '{"credential":"forged"}' })).status, 401);
@@ -70,16 +71,48 @@ test('response is persisted once per subject, own receipt isolated, admin protec
   assert.equal((await f.request('/api/responses', options)).status, 409);
   const results = await (await f.request('/api/admin/responses')).json();
   assert.equal(results.responses.length, 1); assert.equal(results.responses[0].answers.tempo_semanal, 0);
+  const demo = await (await f.request('/api/admin/simulated-responses')).json();
+  assert.equal(demo.responses.length, 26);
+  assert.equal(demo.responses.filter(row => row.company === 'HPT Engenharia').length, 12);
+  assert.equal(demo.responses.filter(row => row.company === 'Lhoist').length, 14);
+  const demoNetwork = networkData(demo.responses);
+  assert.equal(demoNetwork.nodes.find(node => node.id === 's:Indústria').count, 14);
+  assert.equal(demoNetwork.nodes.find(node => node.id === 's:Serviços').count, 12);
+  assert.equal(demoNetwork.links.find(link => link.source === 's:Indústria' && link.target === 't:Nenhuma').count, 4);
+  assert.equal(demoNetwork.nodes.some(node => node.id === 't:Registros em papel'), false);
+  assert.ok(demo.responses.every(row => row.simulated && !row.consent_at));
+  assert.equal(f.store.responses().length, 1);
   assert.equal('subject' in results.responses[0], false);
   assert.match(await (await f.request('/api/admin/export')).text(), /Participante Teste/);
+  const combined = await (await f.request('/api/admin/demonstration')).json();
+  assert.equal(combined.responses.length, 23);
+  const demoExport = await f.request('/api/admin/export?dataset=demonstration');
+  assert.match(demoExport.headers.get('content-disposition'), /medicao-demonstracao\.csv/);
+  const csv = await demoExport.text();
+  assert.match(csv, /Demonstração — inclui respostas simuladas/);
+  for (const row of combined.responses) assert.ok(csv.includes(`"${row.id}"`));
   await f.login({ sub: 'user-b', email: 'other@example.com' });
   assert.equal((await (await f.request('/api/me')).json()).receipt, null);
   assert.equal((await f.request('/api/admin/responses')).status, 403);
+  assert.equal((await f.request('/api/admin/simulated-responses')).status, 403);
   assert.equal((await f.request('/api/admin/export')).status, 403);
+  assert.equal((await f.request('/api/admin/demonstration')).status, 403);
+  assert.equal((await f.request('/api/admin/export?dataset=demonstration')).status, 403);
   await f.login();
   assert.equal((await (await f.request('/api/me')).json()).receipt.id, receipt.id);
   assert.equal((await f.request('/api/auth/logout', { method: 'POST' })).status, 200);
   assert.equal((await f.request('/api/me')).status, 401);
+});
+test('excluded responses keep their receipt and are omitted from results and CSV', async t => {
+  const f = await fixture(t, { RESULTS_EXCLUDED_EMAILS: ' Admin@Example.com ' });
+  await f.login();
+  const submitted = await f.request('/api/responses', { method: 'POST', body: JSON.stringify(payload()) });
+  assert.equal(submitted.status, 201);
+  const { receipt } = await submitted.json();
+  assert.equal((await (await f.request('/api/me')).json()).receipt.id, receipt.id);
+  assert.deepEqual((await (await f.request('/api/admin/responses')).json()).responses, []);
+  assert.doesNotMatch(await (await f.request('/api/admin/export')).text(), /admin@example.com/i);
+  assert.equal(f.store.responses().length, 1);
 });
 test('validation rejects changed questionnaire, out-of-range numbers and contradictory options', () => {
   assert.deepEqual(validateResponse(payload(), questionnaire).errors, {});
@@ -123,14 +156,15 @@ test('density handles insufficient, constant and zero values without inventing s
   const integral = model.points.slice(1).reduce((sum, p, i) => sum + (p.y + model.points[i].y) * dx / 2, 0);
   assert.ok(Math.abs(integral - 1) < .01);
 });
-test('network aggregates sector/tool pairs, excludes None and applies edge filter', () => {
+test('network counts every sector response and filters connections by frequency', () => {
   const rows = [
     { answers: { setor: 'Serviços', ferramentas: ['Planilhas', 'Planilhas', 'BI'] } },
     { answers: { setor: 'Serviços', ferramentas: ['Planilhas'] } },
-    { answers: { setor: 'Saúde', ferramentas: ['Nenhuma'] } }
+    { answers: { setor: 'Saúde', ferramentas: ['Nenhuma'] } },
+    { answers: { setor: 'Serviços', ferramentas: [] } }
   ];
-  const graph = networkData(rows); assert.equal(graph.nodes.length, 3); assert.equal(graph.links.length, 2);
-  assert.equal(graph.nodes.find(n => n.id === 's:Serviços').count, 2);
+  const graph = networkData(rows); assert.equal(graph.nodes.length, 5); assert.equal(graph.links.length, 3);
+  assert.equal(graph.nodes.find(n => n.id === 's:Serviços').count, 3);
   assert.equal(networkData(rows, 2).links.length, 1); assert.equal(networkData(rows, 3).nodes.length, 0);
 });
 

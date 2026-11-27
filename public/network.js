@@ -3,23 +3,23 @@ export function networkData(rows, minimum = 1) {
   const edges = new Map(), counts = new Map();
   for (const row of rows) {
     const sector = row.answers.setor, tools = row.answers.ferramentas;
-    if (!sector || !Array.isArray(tools)) continue;
+    if (!sector) continue;
     const source = `s:${sector}`;
-    const valid = [...new Set(tools)].filter(tool => tool !== 'Nenhuma');
-    if (!valid.length) continue;
     counts.set(source, (counts.get(source) || 0) + 1);
-    for (const tool of valid) {
+    if (!Array.isArray(tools)) continue;
+    for (const tool of new Set(tools.filter(Boolean))) {
       const target = `t:${tool}`, key = JSON.stringify([source, target]);
       counts.set(target, (counts.get(target) || 0) + 1);
       const edge = edges.get(key) || { source, target, count: 0 }; edge.count++; edges.set(key, edge);
     }
   }
   const links = [...edges.values()].filter(edge => edge.count >= minimum);
-  const ids = [...new Set(links.flatMap(edge => [edge.source, edge.target]))];
+  const sectors = minimum === 1 ? [...counts.keys()].filter(id => id.startsWith('s:')) : [];
+  const ids = [...new Set([...sectors, ...links.flatMap(edge => [edge.source, edge.target])])];
   return { nodes: ids.map(id => ({ id, label: id.slice(2), kind: id[0] === 's' ? 'sector' : 'tool', count: counts.get(id) })), links };
 }
 export function renderNetwork() {
-  return `<section class="chart-card network-card"><div class="chart-title"><div><span class="eyebrow">RELAÇÕES ENTRE RESPOSTAS</span><h2>Como os setores se conectam às ferramentas</h2></div><span class="network-badge">INTERATIVO</span></div><p class="chart-subtitle">Cada conexão representa participantes de um setor que usam uma ferramenta. Linhas mais espessas indicam mais respostas; os nós crescem com a participação.</p><div class="network-controls"><label>Conexão mínima: <strong id="network-threshold-label">1 resposta</strong><input id="network-threshold" type="range" min="1" max="10" value="1" aria-label="Mínimo de respostas por conexão"></label><div class="network-buttons"><button class="button secondary" data-zoom="in" aria-label="Aproximar grafo">+</button><button class="button secondary" data-zoom="out" aria-label="Afastar grafo">−</button><button class="button secondary" data-zoom="reset">Restaurar</button></div></div><div class="network-legend"><span><i class="sector-key"></i> Setor</span><span><i class="tool-key"></i> Ferramenta</span><span>Arraste os nós · clique para destacar · use as setas no teclado</span></div><span class="network-mobile-hint">Deslize a área do grafo para ver os dois lados da rede.</span><div id="network-canvas" tabindex="0" aria-label="Área do grafo com rolagem horizontal"></div><p id="network-status" role="status" class="network-status">Selecione um nó para explorar suas conexões.</p><details class="chart-data"><summary>Ver conexões em tabela</summary><div id="network-table"></div></details><p class="chart-method">Uma pessoa pode usar várias ferramentas; por isso, as conexões não somam o total de participantes. “Nenhuma” é excluída. Relações indicam uso declarado, sem inferir causalidade ou desempenho.</p></section>`;
+  return `<section class="chart-card network-card"><div class="chart-title"><div><span class="eyebrow">RELAÇÕES ENTRE RESPOSTAS</span><h2>Como os setores se conectam às ferramentas</h2></div><span class="network-badge">INTERATIVO</span></div><p class="chart-subtitle">A rede cruza o setor da empresa com as respostas à pergunta sobre ferramentas de avaliação. Linhas mais espessas indicam mais respostas.</p><div class="network-controls"><label>Conexão mínima: <strong id="network-threshold-label">1 resposta</strong><input id="network-threshold" type="range" min="1" max="10" value="1" aria-label="Mínimo de respostas por conexão"></label><div class="network-buttons"><button class="button secondary" data-zoom="in" aria-label="Aproximar grafo">+</button><button class="button secondary" data-zoom="out" aria-label="Afastar grafo">−</button><button class="button secondary" data-zoom="reset">Restaurar</button></div></div><div class="network-legend"><span><i class="sector-key"></i> Setor da empresa</span><span><i class="tool-key"></i> Opção marcada</span><span>Arraste os nós · clique para destacar · use as setas no teclado</span></div><span class="network-mobile-hint">Deslize a área do grafo para ver os dois lados da rede.</span><div id="network-canvas" tabindex="0" aria-label="Área do grafo com rolagem horizontal"></div><p id="network-status" role="status" class="network-status">Selecione um nó para explorar suas conexões.</p><details class="chart-data"><summary>Ver conexões em tabela</summary><div id="network-table"></div></details><p class="chart-method">O número no círculo é o total de respostas do setor nesta aba. “Nenhuma” e “Não sei informar” são opções da pergunta. Uma resposta com várias ferramentas aparece em várias conexões.</p></section>`;
 }
 export function bindNetwork(container, rows) {
   const slider = container.querySelector('#network-threshold');
@@ -32,12 +32,12 @@ export function bindNetwork(container, rows) {
   function draw() {
     const minimum = Number(slider.value), data = networkData(rows, minimum);
     container.querySelector('#network-threshold-label').textContent = `${minimum} resposta${minimum === 1 ? '' : 's'}`;
-    container.querySelector('#network-table').innerHTML = data.links.length ? `<div class="table-wrap"><table><thead><tr><th>Setor</th><th>Ferramenta</th><th>Respostas</th></tr></thead><tbody>${data.links.map(l => `<tr><td>${esc(l.source.slice(2))}</td><td>${esc(l.target.slice(2))}</td><td>${l.count}</td></tr>`).join('')}</tbody></table></div>` : '<p>Nenhuma conexão para exibir.</p>';
+    container.querySelector('#network-table').innerHTML = data.links.length ? `<div class="table-wrap"><table><thead><tr><th>Setor da empresa</th><th>Opção marcada</th><th>Respostas</th></tr></thead><tbody>${data.links.map(l => `<tr><td>${esc(l.source.slice(2))}</td><td>${esc(l.target.slice(2))}</td><td>${l.count}</td></tr>`).join('')}</tbody></table></div>` : '<p>Nenhuma conexão para exibir.</p>';
     if (!data.nodes.length) { canvas.innerHTML = '<div class="chart-empty"><span aria-hidden="true">⤴</span><p>Nenhuma conexão disponível para este filtro.</p><small>A rede se forma com respostas sobre setor e ferramentas.</small></div>'; status.textContent = 'Aguardando conexões.'; return; }
-    const width = 960, height = 430;
     const sectors = data.nodes.filter(n => n.kind === 'sector'), tools = data.nodes.filter(n => n.kind === 'tool');
+    const width = 960, height = Math.max(430, (Math.max(sectors.length, tools.length) + 1) * 68);
     for (const list of [sectors, tools]) list.forEach((node, index) => {
-      if (!positions.has(node.id)) positions.set(node.id, { x: node.kind === 'sector' ? 240 + Math.sin(index * 1.7) * 65 : 705 + Math.sin(index * 1.5) * 65, y: (index + 1) * height / (list.length + 1) });
+      if (!positions.has(node.id)) positions.set(node.id, { x: node.kind === 'sector' ? 245 : 710, y: (index + 1) * height / (list.length + 1) });
     });
     canvas.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" role="group" aria-label="Grafo interativo de setores e ferramentas"><g class="network-viewport"><g class="network-edges">${data.links.map((link, index) => `<line data-edge="${index}" stroke="#92ae82" stroke-width="${1 + 7 * link.count / max}" opacity=".45"><title>${esc(link.source.slice(2))} ↔ ${esc(link.target.slice(2))}: ${link.count} respostas</title></line>`).join('')}</g><g class="network-nodes">${data.nodes.map((node, index) => {
       const radius = 12 + Math.sqrt(node.count / Math.max(...data.nodes.map(n => n.count))) * 14;

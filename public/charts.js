@@ -1,4 +1,4 @@
-import { renderNetwork, bindNetwork } from './network.js';
+import { renderNetwork, bindNetwork } from './network.js?v=network-sector-totals';
 const escape = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const fmt = n => new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 1 }).format(n);
 const densityFmt = n => new Intl.NumberFormat('pt-BR', { maximumSignificantDigits: 3 }).format(n);
@@ -59,7 +59,7 @@ function heatmap(rows) {
   }).join('')).join('') + text(128, height - 8, 'Mais claro: menos respostas · Mais escuro: mais respostas');
   return svg('Mapa de calor: quantidade de respostas por setor e uso de indicadores.', body, 480, height) + `<details class="chart-data"><summary>Ver tabela de contagens</summary><div class="table-wrap"><table><thead><tr><th>Setor</th>${labels.map(v => `<th>${v}</th>`).join('')}</tr></thead><tbody>${sectors.map((sector, i) => `<tr><td>${escape(sector)}</td>${counts[i].map(v => `<td>${v}</td>`).join('')}</tr>`).join('')}</tbody></table></div></details>`;
 }
-function distribution(rows, key, kind) {
+function distribution(rows, key, kind, compact = false) {
   const values = numericValues(rows, key), metric = metrics[key], n = values.length;
   const model = estimateDensity(values);
   if (!model) return empty(n < 5 ? `${n} de 5 valores numéricos necessários para exibir esta distribuição.` : 'Os valores recebidos são iguais. Ainda não é possível estimar uma distribuição.');
@@ -83,13 +83,19 @@ function distribution(rows, key, kind) {
     body += values.map((v, i) => `<circle cx="${378 + i % 7 * 4}" cy="${y(v)}" r="2" fill="#648b53" opacity=".55"><title>${fmt(v)} ${metric.unit}</title></circle>`).join('');
     body += text(250, 239, metric.unit, 'text-anchor="middle"') + text(390, 258, 'Valores observados', 'text-anchor="middle"');
   }
-  return svg(`${kind === 'density' ? 'Densidade' : 'Violino'} de ${metric.label}. ${n} valores; mediana ${fmt(median)} ${metric.unit}.`, body) + `<div class="distribution-summary"><span>n = <strong>${n}</strong></span><span>Mediana <strong>${fmt(median)}</strong></span><span>Q1–Q3 <strong>${fmt(q1)}–${fmt(q3)}</strong></span></div><p class="chart-method">KDE gaussiana, largura ${fmt(bandwidth)}; correção no limite zero. ${kind === 'violin' ? 'Largura = densidade; traço = intervalo interquartil; ponto branco = mediana.' : 'Os traços inferiores são observações; a linha pontilhada indica a mediana.'} A curva é uma estimativa suavizada, não novos dados.</p><details class="chart-data"><summary>Ver valores (${n})</summary><p>${values.map(fmt).join(' · ')} ${escape(metric.unit)}</p></details>`;
+  const plot = svg(`${kind === 'density' ? 'Densidade' : 'Violino'} de ${metric.label}. ${n} valores; mediana ${fmt(median)} ${metric.unit}.`, body);
+  if (compact) return plot;
+  return plot + `<div class="distribution-summary"><span>n = <strong>${n}</strong></span><span>Mediana <strong>${fmt(median)}</strong></span><span>Q1–Q3 <strong>${fmt(q1)}–${fmt(q3)}</strong></span></div><p class="chart-method">KDE gaussiana, largura ${fmt(bandwidth)}; correção no limite zero. ${kind === 'violin' ? 'Largura = densidade; traço = intervalo interquartil; ponto branco = mediana.' : 'Os traços inferiores são observações; a linha pontilhada indica a mediana.'} A curva é uma estimativa suavizada, não novos dados.</p><details class="chart-data"><summary>Ver valores (${n})</summary><p>${values.map(fmt).join(' · ')} ${escape(metric.unit)}</p></details>`;
+}
+
+export function renderResearchViolin(rows, key) {
+  return distribution(rows, key, 'violin', true);
 }
 function distributionCard(rows, kind, key) {
   return `<section class="chart-card" data-chart="${kind}"><div class="chart-title"><div><span class="eyebrow">${kind === 'violin' ? 'FORMA E DISPERSÃO' : 'CONCENTRAÇÃO DOS VALORES'}</span><h2>${kind === 'violin' ? 'Gráfico de violino' : 'Curva de densidade'}</h2></div>${exportButton}</div><label class="metric-select"><span class="small">Variável numérica</span><select data-kind="${kind}" aria-label="Variável do gráfico de ${kind === 'violin' ? 'violino' : 'densidade'}">${Object.entries(metrics).map(([id, m]) => `<option value="${id}" ${id === key ? 'selected' : ''}>${m.label} (${m.unit})</option>`).join('')}</select></label><div class="distribution-content">${distribution(rows, key, kind)}</div></section>`;
 }
-export function renderCharts(rows) {
-  return `<div class="analytics-heading"><h2>Um olhar sobre as respostas</h2><span class="small">Amostra de conveniência · resultados descritivos</span></div><div class="charts-grid"><section class="chart-card" data-chart="adocao"><div class="chart-title"><div><span class="eyebrow">TERMÔMETRO DA PESQUISA</span><h2>Adoção de indicadores</h2></div>${exportButton}</div><p class="chart-subtitle">Uso estruturado ou pontual, entre quem soube informar.</p>${thermometer(rows)}</section><section class="chart-card" data-chart="calor"><div class="chart-title"><div><span class="eyebrow">SETOR × ADOÇÃO</span><h2>Mapa de calor</h2></div>${exportButton}</div><p class="chart-subtitle">Contagens absolutas. Cores representam volume, não desempenho.</p>${heatmap(rows)}</section>${distributionCard(rows, 'violin', 'quantidade_indicadores')}${distributionCard(rows, 'density', 'tempo_semanal')}</div><p class="analytics-note">Perguntas numéricas são opcionais; cada gráfico pode ter uma base diferente. Violino e densidade exigem pelo menos 5 valores e alguma variação. Não representam toda a população de empresas e não indicam causalidade.</p>`;
+export function renderCharts(rows, { demonstration = false } = {}) {
+  return `<div class="analytics-heading"><h2>Um olhar sobre as respostas</h2></div><div class="charts-grid"><section class="chart-card" data-chart="adocao"><div class="chart-title"><div><span class="eyebrow">TERMÔMETRO DA PESQUISA</span><h2>Adoção de indicadores</h2></div>${exportButton}</div><p class="chart-subtitle">Uso estruturado ou pontual, entre quem soube informar.</p>${thermometer(rows)}</section><section class="chart-card" data-chart="calor"><div class="chart-title"><div><span class="eyebrow">SETOR × ADOÇÃO</span><h2>Mapa de calor</h2></div>${exportButton}</div><p class="chart-subtitle">Contagens absolutas. Cores representam volume, não desempenho.</p>${heatmap(rows)}</section>${distributionCard(rows, 'violin', 'quantidade_indicadores')}${distributionCard(rows, 'density', 'tempo_semanal')}</div>`;
 }
 export function bindChartControls(container, rows) {
   const network = document.createElement('div'); network.innerHTML = renderNetwork(); container.append(network); bindNetwork(network, rows);

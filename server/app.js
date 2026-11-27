@@ -2,7 +2,7 @@ import express from 'express';
 import { OAuth2Client } from 'google-auth-library';
 import QRCode from 'qrcode';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { resolve, dirname } from 'node:path';
 import { createStore } from './store.js';
@@ -25,8 +25,10 @@ export function createApp(options = {}) {
   const basePath = url.pathname.replace(/\/+$/, '');
   const config = { publicUrl, basePath, googleClientId: env.GOOGLE_CLIENT_ID?.trim() || '' };
   const admins = new Set((env.ADMIN_EMAILS || '').split(',').map(v => v.trim().toLowerCase()).filter(Boolean));
+  const excludedEmails = new Set((env.RESULTS_EXCLUDED_EMAILS || '').split(',').map(email => email.trim().toLowerCase()).filter(Boolean));
   const questionnaire = JSON.parse(readFileSync(resolve(root, 'config/questionnaire.json'), 'utf8'));
-  const store = options.store || createStore(resolve(root, env.DATA_DIR || 'data'));
+  const dataDir = resolve(root, env.DATA_DIR || 'data');
+  const store = options.store || createStore(dataDir);
   const oauth = new OAuth2Client(config.googleClientId);
   const verify = options.verifyGoogle || (async credential => {
     const ticket = await oauth.verifyIdToken({ idToken: credential, audience: config.googleClientId });
@@ -116,21 +118,57 @@ export function createApp(options = {}) {
     store.db.prepare('INSERT INTO responses VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').run(req.session.subject, id, req.session.email, value.name, value.company, questionnaire.version, JSON.stringify(value.answers), now, now);
     res.status(201).json({ receipt: { id, createdAt: now } });
   });
+  const resultRows = () => store.responses().filter(row => !excludedEmails.has(row.email.trim().toLowerCase()));
+  const collectedRows = () => resultRows().map(({ subject, ...row }) => ({ ...row, answers: JSON.parse(row.answers) }));
   app.get('/api/admin/responses', authenticated, admin, (req, res) => {
-    res.json({ responses: store.responses().map(({ subject, ...row }) => ({ ...row, answers: JSON.parse(row.answers) })) });
+    const received = store.responses();
+    const discarded = received.filter(row => excludedEmails.has(row.email.trim().toLowerCase())).length;
+    res.json({ responses: collectedRows(), sample: { received: received.length, discarded } });
+  });
+  function simulatedRows() {
+    const fixture = JSON.parse(readFileSync(resolve(root, 'medicao-32-respostas-sinteticas.json'), 'utf8'));
+    return fixture.respostas.map(({ id, name, email, company, version, answers, data_simulada }) => ({
+      id, name, email, company, version, answers, created_at: data_simulada, simulated: true
+    })).sort((a, b) => b.created_at.localeCompare(a.created_at));
+  }
+  function demonstrationRows() {
+    const simulated = simulatedRows();
+    return [
+      ...collectedRows(),
+      ...simulated.filter(row => row.company === 'HPT Engenharia').slice(0, 10),
+      ...simulated.filter(row => row.company === 'Lhoist').slice(0, 12)
+    ].sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at));
+  }
+  app.get('/api/admin/simulated-responses', authenticated, admin, (req, res) => {
+    res.json({ responses: simulatedRows() });
+  });
+  app.get('/api/admin/demonstration', authenticated, admin, (req, res) => {
+    res.json({ responses: demonstrationRows() });
   });
   app.get('/api/admin/export', authenticated, admin, (req, res) => {
-    const questions = questionnaire.sections.flatMap(s => s.questions);
-    const rows = store.responses();
+    const demonstration = req.query.dataset === 'demonstration';
+    const isExportable = id => !/^(?:nome|name|e[-_]?mail|munic[ií]pio|cidade)(?:$|[_-])/iu.test(id);
+    const questions = questionnaire.sections.flatMap(s => s.questions).filter(q => isExportable(q.id));
+    const rows = demonstration ? demonstrationRows() : collectedRows();
     const known = new Set(questions.map(q => q.id));
-    const historical = [...new Set(rows.flatMap(row => Object.keys(JSON.parse(row.answers))))].filter(id => !known.has(id));
+    const historical = [...new Set(rows.flatMap(row => Object.keys(row.answers)))].filter(id => !known.has(id) && isExportable(id));
     const keys = [...questions.map(q => q.id), ...historical];
-    const header = ['Protocolo', 'Data', 'Nome', 'E-mail', 'Empresa', 'Versão', 'Consentimento', ...questions.map(q => q.label), ...historical.map(id => `Campo anterior: ${id}`)];
-    const lines = [header, ...rows.map(row => {
-      const answers = JSON.parse(row.answers);
-      return [row.id, row.created_at, row.name, row.email, row.company, row.version, row.consent_at, ...keys.map(id => answers[id])];
-    })];
-    res.set('Content-Disposition', 'attachment; filename="respostas-medicao.csv"').type('text/csv').send('\uFEFF' + lines.map(line => line.map(csvCell).join(',')).join('\r\n'));
+    const uuidPath = resolve(dataDir, 'export-uuids.json');
+    const suppliedUuids = new Map(existsSync(uuidPath) ? JSON.parse(readFileSync(uuidPath, 'utf8')) : []);
+    const header = ['GoogleID', 'Data', 'Empresa', 'Versão', ...questions.map(q => q.label), ...historical.map(id => `Campo anterior: ${id}`)];
+    const lines = [header, ...rows.map(row => [
+      suppliedUuids.get(row.id) || row.id, row.created_at, row.company, row.version,
+      ...keys.map(id => row.answers[id])
+    ])];
+    if (demonstration) {
+      lines[0].unshift('Usuário');
+      rows.forEach((row, index) => {
+        const line = lines[index + 1];
+        line.unshift(`Participante ${index + 1}`);
+      });
+    }
+    const filename = demonstration ? 'medicao-demonstracao.csv' : 'respostas-medicao.csv';
+    res.set('Content-Disposition', `attachment; filename="${filename}"`).type('text/csv').send('\uFEFF' + lines.map(line => line.map(csvCell).join(',')).join('\r\n'));
   });
   app.get('/', (req, res) => {
     const base = `${basePath || ''}/`.replaceAll('&', '&amp;').replaceAll('"', '&quot;').replaceAll('<', '&lt;');
